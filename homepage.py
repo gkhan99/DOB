@@ -2,11 +2,11 @@ import streamlit as st
 import requests
 import pandas as pd
 from datetime import datetime
-import os
+from io import StringIO
 
 st.set_page_config(layout="wide")
 
-def fetch_and_save_data_dob_now(selected_date):
+def fetch_data_dob_now(selected_date):
     # Base URL for the selected date
     base_url = f"https://data.cityofnewyork.us/resource/rbx6-tga4.json?$where=issued_date >= '{selected_date}T00:00:00' AND issued_date < '{selected_date}T23:59:59'"
     
@@ -18,29 +18,21 @@ def fetch_and_save_data_dob_now(selected_date):
         # Converting the data into a pandas DataFrame
         df = pd.DataFrame(data)
 
-        # If 'issued_date' exists, process and save
+        # If 'issued_date' exists, process the data
         if 'issued_date' in df.columns:
             df['issued_date'] = pd.to_datetime(df['issued_date'], errors='coerce')
             df['modified_issued_date'] = df['issued_date'].dt.date
             df = df[['modified_issued_date'] + [col for col in df.columns if col != 'modified_issued_date']]
-
-            # Display the data as a table
-            st.dataframe(df)
-
-            # Save the Excel file in the current folder
-            filename = f"NYC_DOB_NOW_{selected_date}.xlsx"
-            filepath = os.path.join(os.getcwd(), filename)
-            df.to_excel(filepath, index=False)
-
-            # Success message
-            st.success(f"Data saved to {filename}")
+            return df
         else:
             st.warning(f"No 'issued_date' data available for {selected_date}")
+            return None
 
     except Exception as e:
         st.error(f"An error occurred: {e}")
+        return None
 
-def fetch_and_save_data_dob_permits(selected_date):
+def fetch_data_dob_permits(selected_date):
     # Format the date in MM/DD/YYYY format (for the API query)
     formatted_date = selected_date.strftime("%m/%d/%Y")
 
@@ -57,23 +49,17 @@ def fetch_and_save_data_dob_permits(selected_date):
 
         # Check if the filtered data is not empty
         if not df.empty:
-            # Display the data as a table
-            st.dataframe(df)
-
-            # Save the data to an Excel file
-            filename = f"DOB_permits_data_{selected_date.strftime('%Y-%m-%d')}.xlsx"
-            filepath = os.path.join(os.getcwd(), filename)
-            df.to_excel(filename, index=False)
-
-            # Success message
-            st.success(f"Data saved to {filename}")
+            return df
         else:
             st.warning(f"No records found for {selected_date.strftime('%Y-%m-%d')}")
+            return None
 
     except KeyError as e:
         st.error(f"A KeyError occurred: {e}")
+        return None
     except Exception as e:
         st.error(f"An error occurred: {e}")
+        return None
 
 def main():
     st.markdown("<h1 style='text-align: center;'>HIRANI ENGINEERING</h1>", unsafe_allow_html=True)
@@ -91,9 +77,20 @@ def main():
     if st.button("Get Data"):
         formatted_date = selected_date.strftime('%Y-%m-%d')
         if selected_option == "DOB NOW":
-            fetch_and_save_data_dob_now(formatted_date)
+            df = fetch_data_dob_now(formatted_date)
         elif selected_option == "DOB Permits":
-            fetch_and_save_data_dob_permits(selected_date)
+            df = fetch_data_dob_permits(selected_date)
+
+        if df is not None:
+            # Display the data as a table
+            st.dataframe(df)
+
+            # Save the data to a CSV file and provide a download button
+            csv = df.to_csv(index=False)
+            st.download_button(label="Download CSV File",
+                               data=csv,
+                               file_name=f"{selected_option}_data_{formatted_date}.csv",
+                               mime="text/csv")
 
     st.markdown("</div>", unsafe_allow_html=True)
 
